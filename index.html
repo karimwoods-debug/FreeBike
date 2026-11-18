@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#101418" />
+    <meta name="description" content="FreeBike – offline indoor cycling with smart trainers and BLE sensors" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <title>FreeBike</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <!-- ===== Menu ===== -->
+    <div id="menu" class="screen">
+      <div class="menu-inner">
+        <header class="brand">
+          <h1>Free<span>Bike</span></h1>
+          <p>Offline indoor cycling · smart trainers · BLE sensors</p>
+        </header>
+
+        <section class="card">
+          <h2>Sensors</h2>
+          <p id="bt-warning" class="warn hidden"></p>
+          <div id="device-list" class="device-list"></div>
+          <div class="row">
+            <button id="pair-btn" class="btn primary">+ Pair sensor</button>
+            <label class="toggle"><input type="checkbox" id="sim-toggle" /> Simulator (no hardware)</label>
+          </div>
+          <p class="hint">Pair your trainer, power meter, cadence sensor and HR strap one at a time. Works with Magene and any FTMS / Cycling Power / CSC / Heart Rate device.</p>
+        </section>
+
+        <section class="card">
+          <h2>Route</h2>
+          <div id="route-list" class="choice-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>Workout</h2>
+          <div id="workout-list" class="choice-list"></div>
+        </section>
+
+        <section class="card">
+          <h2>Settings</h2>
+          <div class="grid">
+            <label>Rider weight (kg)<input type="number" id="set-weight" min="30" max="200" step="1" /></label>
+            <label>Bike weight (kg)<input type="number" id="set-bike" min="5" max="30" step="0.5" /></label>
+            <label>FTP (W)<input type="number" id="set-ftp" min="50" max="600" step="1" /></label>
+            <label>Trainer difficulty<input type="range" id="set-diff" min="0" max="100" step="5" /><span id="set-diff-val"></span></label>
+            <label>Units
+              <select id="set-units"><option value="metric">Metric</option><option value="imperial">Imperial</option></select>
+            </label>
+            <label>Graphics
+              <select id="set-quality">
+                <option value="ps2">PS2 (448p, default)</option>
+                <option value="low">Low (360p, old phones)</option>
+                <option value="high">High (native res)</option>
+              </select>
+            </label>
+            <label>Jersey colour<input type="color" id="set-jersey" /></label>
+            <label class="toggle"><input type="checkbox" id="set-bots" /> Ride with pacer bots</label>
+          </div>
+        </section>
+
+        <button id="start-btn" class="btn start">Start ride ▶</button>
+
+        <section class="card">
+          <h2>Ride history</h2>
+          <div id="history"></div>
+        </section>
+        <footer class="foot">Everything runs on-device. No account, no internet needed after install.</footer>
+      </div>
+    </div>
+
+    <!-- ===== In-ride HUD ===== -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="metric"><b id="m-time">0:00</b><small>time</small></div>
+        <div class="metric"><b id="m-dist">0.00</b><small id="m-dist-u">km</small></div>
+        <div class="metric"><b id="m-speed">0.0</b><small id="m-speed-u">km/h</small></div>
+        <div class="metric power"><b id="m-power">0</b><small>watts <span id="m-avg"></span></small></div>
+        <div class="metric"><b id="m-cad">--</b><small>rpm</small></div>
+        <div class="metric hr"><b id="m-hr">--</b><small>bpm</small></div>
+        <div class="metric"><b id="m-grade">0.0%</b><small>grade</small></div>
+      </div>
+
+      <div id="workout-box" class="workout hidden">
+        <div class="wk-label"><span id="wk-name"></span><span id="wk-remaining"></span></div>
+        <div class="wk-target">Target <b id="wk-target">0</b> W</div>
+        <canvas id="wk-chart" width="600" height="60"></canvas>
+      </div>
+
+      <div id="standings" class="standings"></div>
+      <canvas id="minimap" class="minimap" width="160" height="160"></canvas>
+      <div id="draft" class="draft hidden">DRAFTING</div>
+      <div id="notice" class="notice hidden"></div>
+
+      <div class="hud-bottom">
+        <canvas id="profile" width="800" height="70"></canvas>
+      </div>
+
+      <div class="hud-controls">
+        <button id="cam-btn" class="btn small" title="Camera (C)">🎥</button>
+        <button id="pause-btn" class="btn small" title="Pause (Space)">❚❚</button>
+        <button id="end-btn" class="btn small danger" title="End ride">■</button>
+      </div>
+
+      <div id="sim-controls" class="sim-controls hidden">
+        <button id="sim-down" class="btn small">−25 W</button>
+        <span id="sim-watts">150 W</span>
+        <button id="sim-up" class="btn small">+25 W</button>
+      </div>
+      <div id="fps" class="fps"></div>
+    </div>
+
+    <!-- ===== Pause / summary ===== -->
+    <div id="pause" class="screen overlay hidden">
+      <div class="card center">
+        <h2>Paused</h2>
+        <button id="resume-btn" class="btn primary">Resume</button>
+      </div>
+    </div>
+    <div id="summary" class="screen overlay hidden">
+      <div class="card center">
+        <h2>Ride complete</h2>
+        <div id="summary-stats" class="summary-stats"></div>
+        <div class="row">
+          <button id="export-btn" class="btn primary">Export .TCX</button>
+          <button id="menu-btn" class="btn">Back to menu</button>
+        </div>
+        <p class="hint">Upload the TCX to Strava, Garmin Connect, intervals.icu or TrainingPeaks.</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
